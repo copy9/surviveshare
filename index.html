@@ -1,0 +1,1237 @@
+<html><head><base href="." />
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SurviveShare - Sistema de Reservas de Emergência</title>
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.css" />
+    <script src="https://unpkg.com/leaflet-routing-machine@3.2.12/dist/leaflet-routing-machine.js"></script>
+    <style>
+      body {
+        margin: 0;
+        font-family: 'Arial', sans-serif;
+        background: #1a1a1a;
+        color: #33ff33;
+      }
+  
+      #container {
+        position: relative;
+        display: flex;
+        height: 100vh;
+      }
+  
+      #map {
+        flex: 1;
+        height: 100vh;
+        width: 100%;
+      }
+  
+      #sidebar {
+        width: 300px;
+        background: #2a2a2a;
+        padding: 20px;
+        overflow-y: auto;
+        transition: transform 0.3s ease;
+        position: fixed;
+        height: 100vh;
+        z-index: 1000;
+      }
+  
+      #sidebar.collapsed {
+        transform: translateX(-300px);
+      }
+  
+      #toggleSidebar {
+        position: fixed;
+        left: 310px;
+        top: 10px;
+        z-index: 1001;
+        background: #2a2a2a;
+        border: none;
+        color: #33ff33;
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        cursor: pointer;
+        transition: all 0.3s ease;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 20px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+      }
+  
+      #toggleSidebar.collapsed {
+        left: 10px;
+      }
+  
+      .crisis-warning {
+        background: #ff3333;
+        color: white;
+        padding: 10px;
+        margin-bottom: 20px;
+        border-radius: 5px;
+        display: none;
+      }
+  
+      .supply-form {
+        margin-bottom: 20px;
+      }
+  
+      input, select, textarea, button {
+        width: 100%;
+        margin-bottom: 10px;
+        padding: 8px;
+        background: #333;
+        border: 1px solid #444;
+        color: #33ff33;
+        border-radius: 4px;
+      }
+  
+      button {
+        background: #006600;
+        cursor: pointer;
+        transition: background 0.3s;
+      }
+  
+      button:hover {
+        background: #008800;
+      }
+  
+      .supply-marker {
+        transition: all 0.3s ease;
+      }
+  
+      .supply-marker svg {
+        filter: drop-shadow(0 0 2px rgba(0,0,0,0.5));
+      }
+  
+      @keyframes pulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.2); }
+        100% { transform: scale(1); }
+      }
+  
+      .status-indicator {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 5px;
+      }
+  
+      .status-active {
+        background: #33ff33;
+      }
+  
+      .status-inactive {
+        background: #ff3333;
+      }
+  
+      .leaflet-popup-content {
+        max-height: 200px;
+        overflow-y: auto;
+        color: #333;
+        font-size: 14px;
+      }
+  
+      .leaflet-popup {
+        margin-bottom: 20px;
+      }
+  
+      .inventory-list {
+        margin: 0;
+        padding: 0;
+        list-style: none;
+      }
+  
+      .inventory-list li {
+        padding: 5px 0;
+        border-bottom: 1px solid #eee;
+      }
+  
+      .inventory-list li:last-child {
+        border-bottom: none;
+      }
+  
+      .supply-list {
+        margin: 20px 0;
+        padding: 0;
+      }
+  
+      .category-section {
+        margin-bottom: 15px;
+      }
+  
+      .category-header {
+        color: #33ff33;
+        font-size: 16px;
+        margin-bottom: 10px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+  
+      .supply-item {
+        padding: 8px;
+        margin: 5px 0;
+        background: #333;
+        border: 1px solid #444;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background 0.2s;
+        color: #fff;
+        font-size: 14px;
+      }
+  
+      .supply-item:hover {
+        background: #444;
+      }
+  
+      select option {
+        padding: 8px;
+        display: flex;
+        align-items: center;
+      }
+  
+      .select-icon {
+        margin-right: 8px;
+      }
+  
+      select#category {
+        padding: 8px;
+        font-size: 16px;
+      }
+  
+      .category-option {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 4px;
+      }
+  
+      .category-option::before {
+        margin-right: 5px;
+      }
+  
+      /* Mobile responsive adjustments */
+      @media (max-width: 768px) {
+        #sidebar {
+          width: 85%;
+          max-width: 300px;
+        }
+        
+        #toggleSidebar {
+          width: 35px;
+          height: 35px;
+          font-size: 18px;
+        }
+        
+        .supply-form input,
+        .supply-form select,
+        .supply-form textarea,
+        .supply-form button {
+          font-size: 16px; /* Better for mobile touch */
+          padding: 10px;
+        }
+        
+        .leaflet-touch .leaflet-control-zoom a {
+          width: 35px;
+          height: 35px;
+          line-height: 35px;
+        }
+      }
+  
+      .leaflet-routing-container {
+        background: #2a2a2a;
+        color: #33ff33;
+        padding: 10px;
+        border-radius: 4px;
+        max-width: 320px;
+        max-height: 270px;
+        overflow-y: auto;
+        font-size: 12px;
+      }
+  
+      .leaflet-routing-alt {
+        max-height: 200px;
+        overflow-y: auto;
+      }
+  
+      .leaflet-routing-container h2,
+      .leaflet-routing-container h3 {
+        color: #33ff33;
+        font-size: 14px;
+      }
+  
+      .leaflet-routing-alt tr:hover {
+        background: #333;
+      }
+  
+      @media (max-width: 768px) {
+        .leaflet-routing-container {
+          max-width: 260px;
+          font-size: 11px;
+        }
+      }
+  
+      .location-inputs {
+        margin: 10px 0;
+        padding: 10px;
+        background: #333;
+        border-radius: 4px;
+      }
+  
+      .location-inputs label {
+        display: block;
+        margin-bottom: 8px;
+        cursor: pointer;
+        color: #33ff33;
+      }
+  
+      .location-inputs input[type="radio"] {
+        width: auto;
+        margin-right: 8px;
+      }
+  
+      #customLocationInputs {
+        margin-top: 10px;
+      }
+  
+      #customLocationInputs input {
+        margin-bottom: 5px;
+      }
+  
+      /* Add styles for delete button hover */
+      .supply-item button:hover {
+        background: #cc0000 !important;
+      }
+  
+      #crisisToggleBtn {
+        background: #006600;
+        color: #33ff33;
+        padding: 8px;
+        border: 1px solid #444;
+        border-radius: 4px;
+        cursor: pointer;
+        margin-bottom: 10px;
+        width: 100%;
+        transition: background 0.3s;
+      }
+  
+      #crisisToggleBtn:hover {
+        background: #008800;
+      }
+  
+      #crisisToggleBtn.active {
+        background: #cc0000;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="container">
+      <button id="toggleSidebar" aria-label="Toggle Sidebar">☰</button>
+      <div id="sidebar">
+        <h2>🌍 SurviveShare</h2>
+        <div class="crisis-warning" id="crisisWarning">
+          ⚠️ ALERTA DE CRISE GLOBAL ATIVO
+        </div>
+        <button id="crisisToggleBtn">🚨 Ativar Alerta de Crise</button>
+        <div class="supply-form">
+          <h3>Adicionar Reserva</h3>
+          <input type="text" id="title" placeholder="Nome do item">
+          <select id="category">
+            <option value="food" class="category-option">🍎 Alimentos</option>
+            <option value="water" class="category-option">💧 Água</option>
+            <option value="medical" class="category-option">💊 Suprimentos Médicos</option>
+            <option value="tools" class="category-option">🔧 Ferramentas</option>
+            <option value="ammo" class="category-option">🎯 Munições</option>
+            <option value="weapons" class="category-option">⚔️ Armas</option>
+            <option value="shelter" class="category-option">⛺ Abrigos</option>
+            <option value="other" class="category-option">📦 Outros</option>
+          </select>
+          <textarea id="description" placeholder="Descrição e instruções de localização"></textarea>
+          
+          <div class="location-inputs">
+            <label>
+              <input type="radio" name="location-type" id="useCurrentLocation" checked>
+              Usar localização atual
+            </label>
+            <label>
+              <input type="radio" name="location-type" id="useCustomLocation">
+              Definir localização manualmente
+            </label>
+            <div id="customLocationInputs" style="display: none;">
+              <input type="number" id="customLat" placeholder="Latitude (ex: -23.550520)" step="any">
+              <input type="number" id="customLng" placeholder="Longitude (ex: -46.633308)" step="any">
+            </div>
+          </div>
+          
+          <button id="addSupplyBtn">Adicionar Reserva</button>
+        </div>
+  
+        <div class="status">
+          <h3>Status do Sistema</h3>
+          <p><span class="status-indicator" id="gpsStatus"></span> GPS</p>
+          <p><span class="status-indicator" id="crisisStatus"></span> Status de Crise</p>
+        </div>
+  
+        <div class="supply-list" id="supplyList">
+          <h3>Reservas Disponíveis</h3>
+          <!-- Categories will be populated by JavaScript -->
+        </div>
+      </div>
+      <div id="map"></div>
+    </div>
+  
+    <script>
+      let map;
+      let userMarker;
+      let supplies = [
+        {
+          title: "Kit de Sobrevivência",
+          category: "tools",
+          description: "Kit completo com ferramentas básicas e itens de sobrevivência",
+          position: { lat: -27.5969, lng: -48.5495 },
+          inventory: [
+            "Canivete multifuncional",
+            "Corda 10m",
+            "Kit de primeiros socorros básico",
+            "Lanterna LED",
+            "Fósforos impermeáveis"
+          ],
+          visible: false,
+          used: false
+        },
+        {
+          title: "Reserva de Água",
+          category: "water",
+          description: "20L de água potável em galões selados",
+          position: { lat: -23.5505, lng: -46.6333 },
+          inventory: [
+            "2x Galão 10L água potável",
+            "Filtro de água portátil",
+            "Pastilhas de purificação"
+          ],
+          visible: false,
+          used: false
+        },
+        {
+          title: "Suprimentos Médicos",
+          category: "medical",
+          description: "Kit de primeiros socorros e medicamentos básicos",
+          position: { lat: -22.9068, lng: -43.1729 },
+          inventory: [
+            "Bandagens",
+            "Antissépticos",
+            "Antibióticos",
+            "Analgésicos",
+            "Gaze estéril",
+            "Luvas médicas"
+          ],
+          visible: false,
+          used: false
+        },
+        {
+          title: "Alimentos não perecíveis",
+          category: "food",
+          description: "Conservas, barras energéticas e alimentos desidratados",
+          position: { lat: -15.7975, lng: -47.8919 },
+          inventory: [
+            "10x Barras proteicas",
+            "5x Conservas de atum",
+            "3x Pacotes de frutas secas",
+            "2kg Arroz",
+            "1kg Feijão"
+          ],
+          visible: false,
+          used: false
+        },
+        {
+          title: "Abrigo de Emergência",
+          category: "other",
+          description: "Barraca e equipamentos de abrigo",
+          position: { lat: -3.7319, lng: -38.5267 },
+          inventory: [
+            "Barraca 2 pessoas",
+            "Saco de dormir térmico",
+            "Lona impermeável 3x3m",
+            "Cordas para amarração",
+            "Estacas de alumínio"
+          ],
+          visible: false,
+          used: false
+        },
+        {
+          title: "Reserva de Alimentos Longa Duração",
+          category: "food",
+          description: "Alimentos desidratados e conservas",
+          position: { lat: -8.0476, lng: -34.8770 },
+          inventory: [
+            "Pacotes de comida liofilizada",
+            "MREs (Meals Ready to Eat)",
+            "Barras de proteína",
+            "Vitaminas e suplementos",
+            "Mel em potes selados"
+          ],
+          visible: false,
+          used: false
+        },
+        {
+          title: "Kit de Comunicação",
+          category: "tools",
+          description: "Equipamentos para comunicação de emergência",
+          position: { lat: -12.9714, lng: -38.5014 },
+          inventory: [
+            "Rádio de manivela",
+            "Baterias extras",
+            "Painel solar portátil",
+            "Carregador universal",
+            "Apito de emergência"
+          ],
+          visible: false,
+          used: false
+        },
+        {
+          title: "Depósito de Água Grande",
+          category: "water",
+          description: "Reservatório principal de água e filtros",
+          position: { lat: -19.9167, lng: -43.9345 },
+          inventory: [
+            "Reservatório 50L",
+            "Sistema de filtragem por osmose",
+            "Pastilhas de cloro",
+            "Bomba manual de água",
+            "Mangueiras e conectores"
+          ],
+          visible: false,
+          used: false
+        },
+        {
+          title: "Hospital de Campo",
+          category: "medical",
+          description: "Centro médico de emergência completo",
+          position: { lat: -25.4290, lng: -49.2671 },
+          inventory: [
+            "Kit cirúrgico básico",
+            "Antibióticos diversos",
+            "Material para sutura",
+            "Equipamento de diagnóstico",
+            "Medicamentos controlados",
+            "Máscaras e equipamentos de proteção"
+          ],
+          visible: false,
+          used: false
+        },
+        {
+          title: "Arsenal de Ferramentas",
+          category: "tools",
+          description: "Ferramentas diversas para construção e reparo",
+          position: { lat: -30.0346, lng: -51.2177 },
+          inventory: [
+            "Caixa de ferramentas completa",
+            "Serra manual e elétrica",
+            "Geradores portáteis",
+            "Equipamento de solda",
+            "Ferramentas de jardim"
+          ],
+          visible: false,
+          used: false
+        },
+        {
+          title: "Bunker de Alimentos",
+          category: "food",
+          description: "Depósito subterrâneo de alimentos",
+          position: { lat: -3.1190, lng: -60.0217 },
+          inventory: [
+            "100kg de grãos diversos",
+            "Enlatados de longa duração",
+            "Temperos e condimentos",
+            "Óleos e gorduras",
+            "Sementes para plantio"
+          ],
+          visible: false,
+          used: false
+        },
+        {
+          title: "Centro de Purificação",
+          category: "water",
+          description: "Sistema completo de tratamento de água",
+          position: { lat: -16.6799, lng: -49.2550 },
+          inventory: [
+            "Destilador industrial",
+            "Filtros de carvão ativado",
+            "Sistema UV de purificação",
+            "Tanques de armazenamento",
+            "Equipamento de teste de água"
+          ],
+          visible: false,
+          used: false
+        },
+        {
+          title: "Reserva Urbana Alpha",
+          category: "food",
+          description: "Suprimentos diversos em container selado",
+          position: { lat: -20.4428, lng: -54.6464 },
+          inventory: [
+            "Ração militar 10 unidades",
+            "Água mineral 5L",
+            "Kit de pesca compacto",
+            "Isqueiro",
+            "Bússola"
+          ],
+          visible: false,
+          used: false
+        },
+        {
+          title: "Ponto de Apoio Beta",
+          category: "medical",
+          description: "Suprimentos médicos de emergência",
+          position: { lat: -9.9747, lng: -67.8099 },
+          inventory: [
+            "Kit de sutura",
+            "Antibióticos",
+            "Gaze estéril",
+            "Máscaras N95",
+            "Soro fisiológico"
+          ],
+          visible: false,
+          used: false
+        },
+        {
+          title: "Cache Delta",
+          category: "tools",
+          description: "Ferramentas e equipamentos táticos",
+          position: { lat: -5.7793, lng: -35.2009 },
+          inventory: [
+            "Machado tático",
+            "Rádio de emergência",
+            "Facão",
+            "Cordas",
+            "Kit de reparo"
+          ],
+          visible: false,
+          used: false
+        },
+        {
+          title: "Posto Água Segura",
+          category: "water",
+          description: "Sistema de filtragem e armazenamento",
+          position: { lat: -7.1195, lng: -34.8450 },
+          inventory: [
+            "Filtro Lifestraw",
+            "Garrafas purificadoras",
+            "Pastilhas de iodo",
+            "Bomba manual",
+            "Recipientes selados"
+          ],
+          visible: false,
+          used: false
+        },
+        {
+          title: "Cache Gama",
+          category: "food",
+          description: "Alimentos de longa duração",
+          position: { lat: -22.5203, lng: -41.9169 },
+          inventory: [
+            "Pemmican caseiro",
+            "Barras energéticas",
+            "Nuts mix",
+            "Carne seca",
+            "Chocolate 70%"
+          ],
+          visible: false,
+          used: false
+        },
+        {
+          title: "Ponto Charlie",
+          category: "other",
+          description: "Equipamentos diversos de sobrevivência",
+          position: { lat: -27.0945, lng: -48.9177 },
+          inventory: [
+            "Saco de dormir",
+            "Rede de camuflagem",
+            "Binóculos",
+            "Kit de costura",
+            "Documentos falsos"
+          ],
+          visible: false,
+          used: false
+        },
+        {
+          title: "Base Médica Móvel",
+          category: "medical",
+          description: "Posto avançado de atendimento",
+          position: { lat: -22.9068, lng: -43.1729 },
+          inventory: [
+            "Desfibrilador portátil",
+            "Kit cirúrgico",
+            "Medicamentos controlados",
+            "Equipamento de esterilização",
+            "Plasma sanguíneo"
+          ],
+          visible: false,
+          used: false
+        },
+        {
+          title: "Arsenal Tático",
+          category: "tools",
+          description: "Equipamentos de proteção e ferramentas",
+          position: { lat: -19.9167, lng: -43.9345 },
+          inventory: [
+            "Colete tático",
+            "Ferramentas multifuncionais",
+            "Night vision",
+            "Sistema de comunicação",
+            "Kit de escalada"
+          ],
+          visible: false,
+          used: false
+        },
+        {
+          title: "Bunker Omega",
+          category: "food",
+          description: "Bunker subterrâneo com suprimentos",
+          position: { lat: -25.4290, lng: -49.2671 },
+          inventory: [
+            "Alimentos liofilizados",
+            "Sementes diversas",
+            "Mel em potes",
+            "Proteína em pó",
+            "Vitaminas"
+          ],
+          visible: false,
+          used: false
+        },
+        {
+          title: "Posto Avançado Echo",
+          category: "other",
+          description: "Centro de recursos diversos",
+          position: { lat: -3.7319, lng: -38.5267 },
+          inventory: [
+            "Mapas táticos",
+            "Equipamento de criptografia",
+            "Dinheiro de emergência",
+            "Documentação falsa",
+            "Kit de disfarce"
+          ],
+          visible: false,
+          used: false
+        },
+        {
+          title: "Cache de Munições Alpha",
+          category: "ammo",
+          description: "Munições diversas em container selado",
+          position: { lat: -8.0476, lng: -34.8770 },
+          inventory: [
+            "Munição 9mm x200",
+            "Munição .223 x100",
+            "Munição 12GA x50",
+            "Pólvora 1kg",
+            "Espoletas x500"
+          ],
+          visible: false,
+          used: false
+        },
+        {
+          title: "Arsenal Tático Bravo",
+          category: "weapons",
+          description: "Armamento tático e defensivo",
+          position: { lat: -27.5969, lng: -48.5495 },
+          inventory: [
+            "Rifle tático",
+            "Pistola 9mm",
+            "Arco composto",
+            "Flechas x30",
+            "Coldre tático"
+          ],
+          visible: false,
+          used: false
+        },
+        {
+          title: "Cache de Munições Charlie",
+          category: "ammo",
+          description: "Munições e componentes de recarga",
+          position: { lat: -15.7975, lng: -47.8919 },
+          inventory: [
+            "Munição .308 x150",
+            "Munição .45 x200",
+            "Cartuchos vazios",
+            "Kit de recarga",
+            "Pólvora extra"
+          ],
+          visible: false,
+          used: false
+        },
+        {
+          title: "Bunker Defensivo",
+          category: "shelter",
+          description: "Abrigo fortificado com suprimentos",
+          position: { lat: -30.0346, lng: -51.2177 },
+          inventory: [
+            "Gerador solar",
+            "Rádio comunicador",
+            "Filtro NBC",
+            "Suprimentos 30 dias",
+            "Sistema de vigilância"
+          ],
+          visible: false,
+          used: false
+        },
+        {
+          title: "Cache Tático Delta",
+          category: "weapons",
+          description: "Equipamento de defesa e proteção",
+          position: { lat: -19.9167, lng: -43.9345 },
+          inventory: [
+            "Colete balístico",
+            "Capacete tático",
+            "Escudo anti-tumulto",
+            "Granadas de fumaça",
+            "Kit de proteção NBC"
+          ],
+          visible: false,
+          used: false
+        }
+      ];
+  
+      let currentRoute = null;
+      let userPosition = null;
+  
+      function initMap() {
+        // Center the map on Brazil
+        map = L.map('map').setView([-15.7975, -47.8919], 4);  // Centered on Brasília with zoom level 4
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          attribution: '© OpenStreetMap contributors'
+        }).addTo(map);
+  
+        // Add zoom end event listener
+        map.on('zoomend', function() {
+          supplies.forEach(updateMarkerVisibility);
+        });
+  
+        if ("geolocation" in navigator) {
+          navigator.geolocation.watchPosition(updatePosition, null, {
+            enableHighAccuracy: true
+          });
+          document.getElementById('gpsStatus').className = 'status-indicator status-active';
+        }
+  
+        supplies.forEach(supply => {
+          if (isCrisisActive) {
+            showSupplyOnMap(supply);
+          }
+        });
+      }
+  
+      function updatePosition(position) {
+        const lat = position.coords.latitude;
+        const lng = position.coords.longitude;
+        userPosition = [lat, lng];
+  
+        if (!userMarker) {
+          userMarker = L.marker([lat, lng]).addTo(map);
+          map.setView([lat, lng], 15);
+        } else {
+          userMarker.setLatLng([lat, lng]);
+        }
+  
+        checkNearbySupplies(lat, lng);
+      }
+  
+      function addSupply() {
+        const title = document.getElementById('title').value;
+        const category = document.getElementById('category').value;
+        const description = document.getElementById('description').value;
+  
+        if (!title || !description) {
+          alert('Por favor preencha todos os campos');
+          return;
+        }
+  
+        let position;
+        const useCurrentLocation = document.getElementById('useCurrentLocation').checked;
+  
+        if (useCurrentLocation) {
+          if (!userMarker) {
+            alert('Aguardando sua localização...');
+            return;
+          }
+          position = userMarker.getLatLng();
+        } else {
+          const lat = parseFloat(document.getElementById('customLat').value);
+          const lng = parseFloat(document.getElementById('customLng').value);
+          
+          if (isNaN(lat) || isNaN(lng)) {
+            alert('Por favor insira coordenadas válidas');
+            return;
+          }
+          
+          position = { lat, lng };
+        }
+  
+        const supply = {
+          title: title,
+          category: category,
+          description: description,
+          position: {
+            lat: position.lat,
+            lng: position.lng
+          },
+          inventory: [],
+          visible: true,
+          used: false
+        };
+  
+        supplies.push(supply);
+        
+        // Immediately show the new supply on map and center on it
+        showSupplyOnMap(supply);
+        map.setView([supply.position.lat, supply.position.lng], 15);
+        
+        // Refresh the supply list
+        populateSupplyList();
+  
+        // Clear form
+        document.getElementById('title').value = '';
+        document.getElementById('description').value = '';
+        document.getElementById('category').value = 'food';
+        if (!useCurrentLocation) {
+          document.getElementById('customLat').value = '';
+          document.getElementById('customLng').value = '';
+        }
+        
+        // Open the popup for the new supply
+        if (supply.marker) {
+          supply.marker.openPopup();
+        }
+      }
+  
+      function showSupplyOnMap(supply) {
+        if (supply.marker) {
+          supply.marker.remove();
+        }
+  
+        const icon = L.divIcon({
+          className: 'supply-marker',
+          html: `
+            <svg width="24" height="24" viewBox="0 0 24 24">
+              <circle cx="12" cy="12" r="10" fill="${getCategoryColor(supply.category)}" stroke="white" stroke-width="2"/>
+              <text x="12" y="16" text-anchor="middle" fill="white" style="font-size: 12px;">
+                ${supply.used ? '❌' : getCategoryIcon(supply.category)}
+              </text>
+            </svg>
+          `,
+          iconSize: [24, 24],
+          iconAnchor: [12, 24],
+          popupAnchor: [0, -24]
+        });
+  
+        const marker = L.marker([supply.position.lat, supply.position.lng], {icon: icon})
+          .bindPopup(`
+            <strong>${supply.title}</strong><br>
+            ${supply.description}<br>
+            <small>Categoria: ${supply.category}</small>
+            ${supply.inventory && supply.inventory.length > 0 
+              ? `<h4>Inventário:</h4><ul class="inventory-list">${supply.inventory.map(item => `<li>${item}</li>`).join('')}</ul>`
+              : ''}
+            <div style="display: flex; gap: 5px; margin-top: 10px;">
+              <button onclick="createRoute(${supply.position.lat}, ${supply.position.lng})" style="background: #33ff33; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 4px; flex: 1;">
+                📍 Navegar até aqui
+              </button>
+              <button onclick="markAsUsed(${supply.position.lat}, ${supply.position.lng})" style="background: ${supply.used ? '#666' : '#ff3333'}; color: white; border: none; padding: 5px 10px; cursor: pointer; border-radius: 4px;">
+                ${supply.used ? 'Restaurar' : 'Marcar como usado'}
+              </button>
+            </div>
+          `);
+        
+        supply.marker = marker;
+        marker.addTo(map);
+        supply.visible = true;
+  
+        updateMarkerVisibility(supply);
+      }
+  
+      function markAsUsed(lat, lng) {
+        const supply = supplies.find(s => 
+          s.position.lat === lat && 
+          s.position.lng === lng
+        );
+        
+        if (supply) {
+          supply.used = !supply.used; // Toggle used status
+          showSupplyOnMap(supply); // Refresh marker
+          populateSupplyList(); // Refresh list
+        }
+      }
+  
+      function deleteSupply(supplyToDelete) {
+        // Find the supply by comparing coordinates
+        const supplyIndex = supplies.findIndex(supply => 
+          supply.position.lat === supplyToDelete.position.lat && 
+          supply.position.lng === supplyToDelete.position.lng &&
+          supply.title === supplyToDelete.title
+        );
+  
+        if (supplyIndex !== -1) {
+          // Remove marker from map
+          if (supplies[supplyIndex].marker) {
+            supplies[supplyIndex].marker.remove();
+          }
+          
+          // Remove from supplies array
+          supplies.splice(supplyIndex, 1);
+          
+          // Remove current route if it exists
+          if (currentRoute) {
+            map.removeControl(currentRoute);
+            currentRoute = null;
+          }
+          
+          // Refresh supply list
+          populateSupplyList();
+        }
+      }
+  
+      function updateMarkerVisibility(supply) {
+        const currentZoom = map.getZoom();
+        if (currentZoom < 14 && supply.marker) { // Hide markers when zoomed out
+          supply.marker.remove();
+        } else if (currentZoom >= 14 && supply.visible && !map.hasLayer(supply.marker)) {
+          supply.marker.addTo(map);
+        }
+      }
+  
+      function checkNearbySupplies(lat, lng) {
+        const userPosition = L.latLng(lat, lng);
+        
+        supplies.forEach(supply => {
+          const supplyPosition = L.latLng(supply.position.lat, supply.position.lng);
+          const distance = userPosition.distanceTo(supplyPosition);
+          if (distance < 500 && isCrisisActive) { // Changed from 100 to 500
+            if (!supply.visible) {
+              showSupplyOnMap(supply);
+              supply.visible = true;
+            }
+          }
+        });
+      }
+  
+      function getCategoryColor(category) {
+        const colors = {
+          food: '#ff9900',
+          water: '#0099ff', 
+          medical: '#ff3333',
+          tools: '#996633',
+          ammo: '#666666',
+          weapons: '#cc0000',
+          shelter: '#339933',
+          other: '#9933ff'
+        };
+        return colors[category] || '#666666';
+      }
+  
+      function getCategoryIcon(category) {
+        const icons = {
+          food: '🍎',
+          water: '💧',
+          medical: '💊',
+          tools: '🔧',
+          ammo: '🎯',
+          weapons: '⚔️',
+          shelter: '⛺',
+          other: '📦'
+        };
+        return icons[category] || '?';
+      }
+  
+      let isCrisisActive = false;
+  
+      function toggleCrisis() {
+        isCrisisActive = !isCrisisActive;
+        document.getElementById('crisisWarning').style.display = 
+          isCrisisActive ? 'block' : 'none';
+        document.getElementById('crisisStatus').className = 
+          `status-indicator ${isCrisisActive ? 'status-active' : 'status-inactive'}`;
+        
+        document.getElementById('crisisToggleBtn').textContent = 
+          isCrisisActive ? '🚨 Desativar Alerta de Crise' : '🚨 Ativar Alerta de Crise';
+        document.getElementById('crisisToggleBtn').classList.toggle('active');
+  
+        supplies.forEach(supply => {
+          if (supply.marker) {
+            supply.marker.remove();
+            supply.marker = null;
+            supply.visible = false;
+          }
+        });
+  
+        if (isCrisisActive) {
+          supplies.forEach(supply => {
+            showSupplyOnMap(supply);
+          });
+          populateSupplyList();
+        }
+      }
+  
+      function populateSupplyList() {
+        const supplyList = document.getElementById('supplyList');
+        const categories = {
+          food: "🍎 Alimentos",
+          water: "💧 Água",
+          medical: "💊 Suprimentos Médicos",
+          tools: "🔧 Ferramentas",
+          ammo: "🎯 Munições",
+          weapons: "⚔️ Armas",
+          shelter: "⛺ Abrigos",
+          other: "📦 Outros"
+        };
+  
+        // Clear existing content
+        supplyList.innerHTML = '<h3>Reservas Disponíveis</h3>';
+  
+        // Create sections for each category
+        Object.entries(categories).forEach(([category, label]) => {
+          const categorySupplies = supplies.filter(s => s.category === category);
+          if (categorySupplies.length > 0) {
+            const section = document.createElement('div');
+            section.className = 'category-section';
+            
+            const header = document.createElement('div');
+            header.className = 'category-header';
+            header.innerHTML = label;
+            section.appendChild(header);
+  
+            categorySupplies.forEach(supply => {
+              const item = document.createElement('div');
+              item.className = 'supply-item';
+              
+              // Add visual indicator for used supplies
+              item.innerHTML = `
+                <span>
+                  ${supply.used ? '❌ ' : ''}${supply.title}
+                </span>
+              `;
+              
+              // Add used supply styling
+              if (supply.used) {
+                item.style.opacity = '0.6';
+              }
+  
+              item.onclick = () => {
+                map.setView([supply.position.lat, supply.position.lng], 17);
+                if (supply.marker) {
+                  supply.marker.openPopup();
+                }
+                createRoute(supply.position.lat, supply.position.lng);
+              };
+  
+              section.appendChild(item);
+            });
+  
+            supplyList.appendChild(section);
+          }
+        });
+      }
+  
+      function createRoute(lat, lng) {
+        if (!userPosition) {
+          alert('Aguardando sua localização...');
+          return;
+        }
+  
+        // Remove existing route if any
+        if (currentRoute) {
+          map.removeControl(currentRoute);
+        }
+  
+        // Create new route
+        currentRoute = L.Routing.control({
+          waypoints: [
+            L.latLng(userPosition[0], userPosition[1]),
+            L.latLng(lat, lng)
+          ],
+          routeWhileDragging: false,
+          lineOptions: {
+            styles: [
+              {color: '#33ff33', opacity: 0.8, weight: 6}
+            ]
+          },
+          createMarker: function() { return null; } // Don't create additional markers
+        }).addTo(map);
+  
+        // Fit map to show entire route
+        setTimeout(() => {
+          if (currentRoute._route) {
+            map.fitBounds(currentRoute._route.coordinates);
+          }
+        }, 1000);
+      }
+  
+      function toggleSidebar() {
+        const sidebar = document.getElementById('sidebar');
+        const toggleBtn = document.getElementById('toggleSidebar');
+        sidebar.classList.toggle('collapsed');
+        toggleBtn.classList.toggle('collapsed');
+        toggleBtn.innerHTML = sidebar.classList.contains('collapsed') ? '☰' : '×';
+        
+        // Trigger map resize to prevent grey areas
+        setTimeout(() => {
+          map.invalidateSize();
+        }, 300);
+      }
+  
+      window.onload = () => {
+        initMap();
+        document.getElementById('addSupplyBtn').addEventListener('click', addSupply);
+        document.getElementById('toggleSidebar').addEventListener('click', toggleSidebar);
+        // Force crisis mode on and show all supplies
+        if (!isCrisisActive) {
+          toggleCrisis();
+        }
+        populateSupplyList();
+        
+        // Add radio button change event listeners
+        document.getElementById('useCurrentLocation').addEventListener('change', function() {
+          document.getElementById('customLocationInputs').style.display = 'none';
+        });
+        
+        document.getElementById('useCustomLocation').addEventListener('change', function() {
+          document.getElementById('customLocationInputs').style.display = 'block';
+        });
+        
+        // Add touch events for mobile swipe
+        let touchStartX = 0;
+        let touchEndX = 0;
+        
+        document.addEventListener('touchstart', e => {
+          touchStartX = e.touches[0].clientX;
+        }, false);
+        
+        document.addEventListener('touchend', e => {
+          touchEndX = e.changedTouches[0].clientX;
+          handleSwipe();
+        }, false);
+        
+        function handleSwipe() {
+          const swipeDistance = touchEndX - touchStartX;
+          const sidebar = document.getElementById('sidebar');
+          const isCollapsed = sidebar.classList.contains('collapsed');
+          
+          if (Math.abs(swipeDistance) > 50) { // Minimum swipe distance
+            if (swipeDistance > 0 && isCollapsed) { // Swipe right
+              toggleSidebar();
+            } else if (swipeDistance < 0 && !isCollapsed) { // Swipe left
+              toggleSidebar();
+            }
+          }
+        }
+  
+        document.getElementById('crisisToggleBtn').addEventListener('click', function() {
+          toggleCrisis();
+          this.textContent = isCrisisActive ? '🚨 Desativar Alerta de Crise' : '🚨 Ativar Alerta de Crise';
+          this.classList.toggle('active');
+        });
+      };
+    </script>
+  </body></html>
